@@ -2221,6 +2221,18 @@ int SSL_CTX_set_ciphersuites(SSL_CTX *ctx, const char *str) {
                                 true /* only configure TLSv1.3 ciphers */);
 }
 
+int SSL_set_ciphersuites(SSL *ssl, const char *str) {
+  if (!ssl->config) {
+    return 0;
+  }
+  const bool has_aes_hw = ssl->config->aes_hw_override
+                              ? ssl->config->aes_hw_override_value
+                              : EVP_has_aes_hardware();
+  return ssl_create_cipher_list(&ssl->config->cipher_list, has_aes_hw, str,
+                                false /* not strict */,
+                                true /* configure TLSv1.3 ciphers */);
+}
+
 int SSL_set_strict_cipher_list(SSL *ssl, const char *str) {
   if (!ssl->config) {
     return 0;
@@ -3045,6 +3057,41 @@ uint16_t SSL_get_peer_signature_algorithm(const SSL *ssl) {
   }
 
   return session->peer_signature_algorithm;
+}
+
+int SSL_get_peer_signature_nid(const SSL *ssl, int *psig_nid) {
+  GUARD_PTR(psig_nid);
+
+  uint16_t sig_alg = SSL_get_peer_signature_algorithm(ssl);
+  if (sig_alg == 0) {
+    return 0;
+  }
+
+  const EVP_MD *digest_type = SSL_get_signature_algorithm_digest(sig_alg);
+  if (digest_type == NULL) {
+    return 0;
+  }
+
+  *psig_nid = EVP_MD_nid(digest_type);
+  return 1;
+}
+
+int SSL_get_peer_signature_type_nid(const SSL *ssl, int *psigtype_nid) {
+  GUARD_PTR(psigtype_nid);
+
+  uint16_t sig_alg = SSL_get_peer_signature_algorithm(ssl);
+  if (sig_alg == 0) {
+    return 0;
+  }
+
+  int sig_type = SSL_get_signature_algorithm_key_type(sig_alg);
+
+  if (sig_type == EVP_PKEY_NONE) {
+    return 0;
+  }
+
+  *psigtype_nid = sig_type;
+  return 1;
 }
 
 size_t SSL_get_client_random(const SSL *ssl, uint8_t *out, size_t max_out) {

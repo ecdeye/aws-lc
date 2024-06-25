@@ -66,6 +66,8 @@ if(NOT OPENSSL_NO_ASM)
         set(PERLASM_STYLE win32n)
         set(PERLASM_FLAGS "-DOPENSSL_IA32_SSE2")
       endif()
+      find_program(NASM_EXECUTABLE nasm)
+      set(CMAKE_ASM_NASM_COMPILER ${NASM_EXECUTABLE})
       set(CMAKE_ASM_NASM_FLAGS "${CMAKE_ASM_NASM_FLAGS} -gcv8")
 
       # On Windows, we use the NASM output.
@@ -731,6 +733,7 @@ if(BUILD_TESTING)
     fipsmodule/ec/ec_test.cc
     fipsmodule/ec/p256-nistz_test.cc
     fipsmodule/ecdsa/ecdsa_test.cc
+    fipsmodule/kdf/kdf_test.cc
     fipsmodule/md5/md5_test.cc
     fipsmodule/modes/gcm_test.cc
     fipsmodule/modes/xts_test.cc
@@ -738,6 +741,7 @@ if(BUILD_TESTING)
     fipsmodule/rand/ctrdrbg_test.cc
     fipsmodule/rand/cpu_jitter_test.cc
     fipsmodule/rand/fork_detect_test.cc
+    fipsmodule/rand/snapsafe_detect_test.cc
     fipsmodule/service_indicator/service_indicator_test.cc
     fipsmodule/sha/sha_test.cc
     fipsmodule/sha/sha3_test.cc

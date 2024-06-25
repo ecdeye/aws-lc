@@ -54,8 +54,8 @@
  * (eay@cryptsoft.com).  This product includes software written by Tim
  * Hudson (tjh@cryptsoft.com). */
 
-#include <stdio.h>
-
+#include <assert.h>
+#include <limits.h>
 #include <string.h>
 
 #include <openssl/digest.h>
@@ -171,8 +171,12 @@ int X509_PURPOSE_get_by_sname(const char *sname) {
 }
 
 int X509_PURPOSE_get_by_id(int purpose) {
-  if (purpose >= X509_PURPOSE_MIN && purpose <= X509_PURPOSE_MAX) {
-    return purpose - X509_PURPOSE_MIN;
+  for (size_t i = 0; i <OPENSSL_ARRAY_SIZE(xstandard); i++) {
+    if (xstandard[i].purpose == purpose) {
+      OPENSSL_STATIC_ASSERT(OPENSSL_ARRAY_SIZE(xstandard) <= INT_MAX,
+                    indices_must_fit_in_int);
+      return (int)i;
+    }
   }
   return -1;
 }
@@ -399,9 +403,11 @@ int x509v3_cache_extensions(X509 *x) {
       break;
     }
   }
-  if (!x509_init_signature_info(x)) {
-    x->ex_flags |= EXFLAG_INVALID;
-  }
+
+  // Set x->sig_info. Errors here are ignored so that we emit similar errors
+  // to OpenSSL, instead of failing early.
+  (void)x509_init_signature_info(x);
+
   x->ex_flags |= EXFLAG_SET;
 
   CRYPTO_MUTEX_unlock_write(&x->lock);
@@ -597,14 +603,6 @@ static int check_purpose_timestamp_sign(const X509_PURPOSE *xp, const X509 *x,
 
 static int no_check(const X509_PURPOSE *xp, const X509 *x, int ca) { return 1; }
 
-// Various checks to see if one certificate issued the second. This can be
-// used to prune a set of possible issuer certificates which have been looked
-// up using some simple method such as by subject name. These are: 1. Check
-// issuer_name(subject) == subject_name(issuer) 2. If akid(subject) exists
-// check it matches issuer 3. If key_usage(issuer) exists check it supports
-// certificate signing returns 0 for OK, positive for reason for mismatch,
-// reasons match codes for X509_verify_cert()
-
 int X509_check_issued(X509 *issuer, X509 *subject) {
   if (X509_NAME_cmp(X509_get_subject_name(issuer),
                     X509_get_issuer_name(subject))) {
@@ -627,7 +625,7 @@ int X509_check_issued(X509 *issuer, X509 *subject) {
   return X509_V_OK;
 }
 
-int X509_check_akid(X509 *issuer, AUTHORITY_KEYID *akid) {
+int X509_check_akid(X509 *issuer, const AUTHORITY_KEYID *akid) {
   if (!akid) {
     return X509_V_OK;
   }
